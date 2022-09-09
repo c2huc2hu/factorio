@@ -1,0 +1,111 @@
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    42                                           @profile
+    43                                           def main():
+    44         1          3.0      3.0      0.0      NUM_CANNONS = 16
+    45         1          1.0      1.0      0.0      RECHARGE_TICKS = 150 * 60 # 2.5 min = 9000 ticks
+    46         1          0.0      0.0      0.0      METEOR_EVENT_INTERVAL_LO = 1
+    47         1          0.0      0.0      0.0      METEOR_EVENT_INTERVAL_HI = 30
+    48         1          1.0      1.0      0.0      TICKS_PER_INTERVAL = 60 * 60
+    49         1          1.0      1.0      0.0      PROB_HIT_METEOR = 0.8
+    50         1          0.0      0.0      0.0      MAX_SIM_TICKS = 10000 * 60 * 60 * 60 # 1000 hours
+    51
+    52         1          1.0      1.0      0.0      DPRINT = False
+    53
+    54         1          4.0      4.0      0.0      event_scheduler = MeteorEventScheduler(NUM_CANNONS, RECHARGE_TICKS)
+    55         1          0.0      0.0      0.0      event_idx = 0
+    56
+    57         1          1.0      1.0      0.0      tot_num_meteors = 0
+    58         1          0.0      0.0      0.0      tot_num_meteors_destroyed = 0
+    59         1          0.0      0.0      0.0      tot_num_meteors_remain = 0
+    60         1          1.0      1.0      0.0      tot_num_fires = 0
+    61         1          1.0      1.0      0.0      tot_num_hits = 0
+    62         1          0.0      0.0      0.0      tot_num_misses = 0
+    63         1          1.0      1.0      0.0      tot_events = 0
+    64         1          1.0      1.0      0.0      tot_events_success = 0
+    65         1          0.0      0.0      0.0      tot_events_fail = 0
+    66
+    67     38718      23352.0      0.6      1.0      while event_scheduler.tick <= MAX_SIM_TICKS:
+    68     38717      23861.0      0.6      1.1          tot_events += 1
+    69     38717      22581.0      0.6      1.0          if DPRINT: print(f'Event {event_idx}:')
+    70     38717      22426.0      0.6      1.0          if DPRINT: print(f'    The time is: {event_scheduler.tick} ticks')
+    71
+    72     38717      22574.0      0.6      1.0          if DPRINT: print(f'    Cannons ready: {event_scheduler.cnt_cannon_ready()} {event_scheduler.repr_cannon_ready()}')
+    73     38717      51378.0      1.3      2.3          num_meteors = geom_50_sample()
+    74
+    75     38717      22829.0      0.6      1.0          if DPRINT: print(f'    Incoming meteors: {num_meteors}')
+    76
+    77     38717      23793.0      0.6      1.1          tot_num_meteors += num_meteors
+    78     38717      22486.0      0.6      1.0          num_meteors_outstanding = num_meteors
+    79
+    80     38717      44557.0      1.2      2.0          can_fire = event_scheduler.try_fire_cannon()
+    81
+    82    134985      80163.0      0.6      3.6          while can_fire:
+    83    134985      83377.0      0.6      3.7              if num_meteors_outstanding > 0:
+    84     96268      56198.0      0.6      2.5                  if DPRINT: print(f'    Firing cannon {nxt_cannon_idx}')
+    85     96268      59355.0      0.6      2.6                  tot_num_fires += 1
+    86     96268      65464.0      0.7      2.9                  if random.random() < PROB_HIT_METEOR:
+    87     77092      47021.0      0.6      2.1                      num_meteors_outstanding -= 1
+    88     77092      47065.0      0.6      2.1                      tot_num_hits += 1
+    89     77092      47275.0      0.6      2.1                      tot_num_meteors_destroyed += 1
+    90     77092      46284.0      0.6      2.1                      if DPRINT: print(f'        Cannon {nxt_cannon_idx} hit meteor!')
+    91                                                           else:
+    92     19176      11820.0      0.6      0.5                      tot_num_misses += 1
+    93     19176      11424.0      0.6      0.5                      if DPRINT: print(f'        Cannon {nxt_cannon_idx} missed meteor!')
+    94     96268      57839.0      0.6      2.6                  if DPRINT: print(f'        Cannon {nxt_cannon_idx} will be ready at t = {event_scheduler.cannon_ready_tick[nxt_cannon_idx]}')
+    95                                                       else:
+    96                                                           break
+    97     96268     106658.0      1.1      4.7              can_fire = event_scheduler.try_fire_cannon()
+    98     38717      23242.0      0.6      1.0          if DPRINT: print(f'    Remaining meteors: {num_meteors_outstanding}')
+    99     38717      23468.0      0.6      1.0          tot_num_meteors_remain += num_meteors_outstanding
+   100     38717      24582.0      0.6      1.1          if num_meteors_outstanding == 0:
+   101     38717      23539.0      0.6      1.0              if DPRINT: print(f'    Success!')
+   102     38717      24983.0      0.6      1.1              tot_events_success += 1
+   103                                                   else:
+   104                                                       if DPRINT: print(f'    Fail!')
+   105                                                       tot_events_fail += 1
+   106
+   107     38717      86541.0      2.2      3.8          nxt_increment = random.randint(METEOR_EVENT_INTERVAL_LO, METEOR_EVENT_INTERVAL_HI)
+   108     38717      24795.0      0.6      1.1          nxt_increment_ticks = nxt_increment * TICKS_PER_INTERVAL
+   109     38717      26170.0      0.7      1.2          event_scheduler.next_meteor_event_tick = event_scheduler.next_meteor_event_tick + nxt_increment_ticks
+   110
+   111     38717      23881.0      0.6      1.1          if DPRINT: print()
+   112     38717      23186.0      0.6      1.0          if DPRINT: print(f'The next meteor shower is scheduled in {nxt_increment} minutes at t = {event_scheduler.next_meteor_event_tick}')
+   113     38717      23142.0      0.6      1.0          if DPRINT: print()
+   114
+   115     38717      23216.0      0.6      1.0          if DPRINT: print(f'Advancing to: {event_scheduler.next_meteor_event_tick} ticks')
+   116    658189     417020.0      0.6     18.5          for i,v in enumerate(event_scheduler.cannon_ready_tick):
+   117    619472     386163.0      0.6     17.1              if event_scheduler.tick < v and event_scheduler.next_meteor_event_tick >= v:
+   118         5          2.0      0.4      0.0                  if DPRINT: print(f'    Cannon {i} finished recharging at t = {v}')
+   119     38717      23700.0      0.6      1.1          if DPRINT: print()
+   120     38717      25662.0      0.7      1.1          event_scheduler.prev_tick = event_scheduler.tick
+   121     38717      25344.0      0.7      1.1          event_scheduler.tick = event_scheduler.next_meteor_event_tick
+   122
+   123     38717      24683.0      0.6      1.1          event_idx += 1
+   124
+   125         1        323.0    323.0      0.0      print(f'The simulation terminated in {MAX_SIM_TICKS/60/60/60} hours at t = {MAX_SIM_TICKS}')
+   126         1         91.0     91.0      0.0      print()
+   127
+   128         1         73.0     73.0      0.0      print(f'Parameters:')
+   129         1        219.0    219.0      0.0      print(f'    NUM_CANNONS: {NUM_CANNONS}')
+   130         1        172.0    172.0      0.0      print(f'    RECHARGE_TICKS: {RECHARGE_TICKS}')
+   131         1        172.0    172.0      0.0      print(f'    METEOR_EVENT_INTERVAL_LO: {METEOR_EVENT_INTERVAL_LO}')
+   132         1        174.0    174.0      0.0      print(f'    METEOR_EVENT_INTERVAL_HI: {METEOR_EVENT_INTERVAL_HI}')
+   133         1         71.0     71.0      0.0      print(f'    TICKS_PER_INTERVAL: {TICKS_PER_INTERVAL}')
+   134         1         32.0     32.0      0.0      print(f'    PROB_HIT_METEOR: {PROB_HIT_METEOR}')
+   135         1         26.0     26.0      0.0      print(f'    MAX_SIM_TICKS: {MAX_SIM_TICKS}')
+   136         1         14.0     14.0      0.0      print()
+   137
+   138         1         24.0     24.0      0.0      print(f'Statistics:')
+   139         1         26.0     26.0      0.0      print(f'    Meteor events (total): {tot_events}')
+   140         1         25.0     25.0      0.0      print(f'        Meteor events (successfully defended): {tot_events_success}')
+   141         1         27.0     27.0      0.0      print(f'        Meteor events (failed to defend): {tot_events_fail}')
+   142         1         27.0     27.0      0.0      print(f'        Meteor events (success%): {tot_events_success/tot_events*100}')
+   143         1         27.0     27.0      0.0      print(f'    Meteors (total): {tot_num_meteors}')
+   144         1         26.0     26.0      0.0      print(f'        Meteors (destroyed): {tot_num_meteors_destroyed}')
+   145         1         42.0     42.0      0.0      print(f'        Meteors (remaining): {tot_num_meteors_remain}')
+   146         1         26.0     26.0      0.0      print(f'        Meteors (destroy%): {tot_num_meteors_destroyed/tot_num_meteors*100}')
+   147         1         25.0     25.0      0.0      print(f'    Cannon fires (total): {tot_num_fires}')
+   148         1         25.0     25.0      0.0      print(f'        Cannon fires (hits): {tot_num_hits}')
+   149         1         25.0     25.0      0.0      print(f'        Cannon fires (misses): {tot_num_misses}')
+   150         1         26.0     26.0      0.0      print(f'        Cannon fires (hit%): {tot_num_hits/tot_num_fires*100}')
