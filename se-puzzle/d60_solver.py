@@ -169,6 +169,11 @@ def associate_glyph_points(adjacent_glyphs, points, adjacent_points):
 
     # Coordinates of some glyphs are known
     known_glyphs = set(list(np.where(np.any(STARMAPPING != 0, axis=1))[0]))
+    hidden_glyphs = set()
+
+    # Remove some glyphs from the known set to check against later
+    for _ in range(len(known_glyphs)//2):
+        hidden_glyphs.add(known_glyphs.pop())
 
     # Find the closest points each known glyph
     while len(known_glyphs) > 0:
@@ -183,13 +188,13 @@ def associate_glyph_points(adjacent_glyphs, points, adjacent_points):
 
         closest_point = np.argmin(distances)
 
-        print("Star {} : {} is closest to point {}".format(GLYPH_NAMES[current_glyph], STARMAPPING[current_glyph], points[closest_point]))
+        print("Star {} ({}) : {} is closest to point ({}) {}".format(GLYPH_NAMES[current_glyph], current_glyph, STARMAPPING[current_glyph], closest_point, points[closest_point]))
 
         # Associate the nearest point to this glpyh
         glyph_points[current_glyph] = closest_point
 
     # Now fill in the rest of the associations by adjacency
-    known_glyphs = set(list(np.where(np.any(STARMAPPING != 0, axis=1))[0]))
+    known_glyphs = set(list(np.where(np.any(STARMAPPING != 0, axis=1))[0])).difference(hidden_glyphs)
 
     current_glyph = None
     next_glyphs = set()
@@ -215,6 +220,13 @@ def associate_glyph_points(adjacent_glyphs, points, adjacent_points):
                 next_glyphs.add(adj_glyph)
 
         glyphs.remove(current_glyph)
+
+    # Check against the hidden glyphs
+    while len(hidden_glyphs) > 0:
+        check_glyph = hidden_glyphs.pop()
+
+        print("Compare Glyph {} : {} Estimated : {} Actual : {}".format(check_glyph, GLYPH_NAMES[check_glyph], points[glyph_points[check_glyph]], STARMAPPING[check_glyph]))
+        assert np.dot(points[glyph_points[check_glyph]], STARMAPPING[check_glyph]) > 0.999
 
     return glyph_points
 
