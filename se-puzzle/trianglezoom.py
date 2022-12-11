@@ -24,7 +24,7 @@ def find_row(v: array) -> int:
     # Find the component of v from the top of the triangle, whose height is root_3/2
 
     # scale height to 7 and count from the top
-    return int(7 * (1 - v[1] / (root_3 / 2)))
+    return int(8 * (1 - v[1] / (root_3 / 2)))
 
 def rotation_matrix_2d(theta: float) -> array:
     return array([[cos(theta), -sin(theta)], [sin(theta), cos(theta)]])
@@ -66,16 +66,16 @@ def transform_v(v: array, subtriangle: tuple) -> array:
 
         # We can mirror v across the top edge of the inverted triangle,
         # and use the math from for the non-inverted triangle.
-        top_edge = root_3/2 * 1/7 * (7 - subtriangle[2]) # NOTE: Every time you convert from row number to a point, you must multipy y by root_3/2
+        top_edge = root_3/2 * 1/8 * (8 - subtriangle[2]) # NOTE: Every time you convert from row number to a point, you must multipy y by root_3/2
         v = array([v[0], 2*top_edge - v[1]])
 
         subtriangle = (subtriangle[0], subtriangle[1], subtriangle[2] - 1)
 
-    bottom_left_corner_of_subtriangle = 1/7 * array([
-        (2 * subtriangle[0] + subtriangle[2] - 6) / 2, # not intuitive, I had to make a table for this
-        root_3/2 * (6 - subtriangle[2])
+    bottom_left_corner_of_subtriangle = 1/8 * array([
+        (2 * subtriangle[0] + subtriangle[2] - 7) / 2, # not intuitive, I had to make a table for this
+        root_3/2 * (7 - subtriangle[2])
     ])
-    new_v = 7 * (v - bottom_left_corner_of_subtriangle)
+    new_v = 8 * (v - bottom_left_corner_of_subtriangle)
 
     logging.info(f"Transformed {v} in subtriangle {subtriangle} to {new_v}")
 
@@ -95,9 +95,19 @@ def find_sequence(v: array) -> list:
 
 if __name__ == '__main__':
     # Check that indexing is correct
-    assert find_subtriangle(array([0.01, 0.01])) == (0, 6, 6)
-    assert find_subtriangle(array([0.14, 0.2])) == (1, 6, 5)
+    assert find_subtriangle(array([0.000001, 0.000001])) == (0, 7, 7)
+    assert find_subtriangle(array([0.125, 0.125])) == (1, 7, 6)
 
     # Should all be center triangles
-    center = array([0.5, root_3 / 4])
-    assert find_sequence(center) == [(5,5,3)] * 7
+    center = array([0.5 + 0.001, root_3 / 4 + 0.001])
+    # assert find_sequence(center) == [(5,5,3)] * 7
+
+
+    # Possible guess:
+    print("GUESS")
+    guess = array([0.59686167, 0.24177929])
+    print(find_sequence(guess))
+
+    print("TEST")
+    print(find_subtriangle(np.array([0.00001,0.00001])))
+    print(find_subtriangle(np.array([0.000000001,0.000000001])))
