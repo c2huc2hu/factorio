@@ -285,7 +285,8 @@ def main():
 
     initial_vector = np.argmax(dot_products)
 
-    print("Initial Vector: Glyph {} : {} : {}".format(initial_vector, GLYPH_NAMES[initial_vector], vectors[initial_vector]))
+    # Shift back to 1-indexed to match the glyph icons
+    print("Initial Vector: Glyph {} : {} : {}".format(initial_vector+1, GLYPH_NAMES[initial_vector], vectors[initial_vector]))
 
     draw_line(ax, ORIGIN, unit(vectors[initial_vector])*10, 'g--')
 
