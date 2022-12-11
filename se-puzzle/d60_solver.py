@@ -243,6 +243,8 @@ def main():
     ax.set_ylim3d(-1,1)
     ax.set_zlim3d(-1,1)
 
+    n = 60
+
     # Draw the target course
     destination = unit(DESTINATION_VECTOR) * 10
     draw_line(ax, ORIGIN, destination, 'g')
@@ -257,7 +259,6 @@ def main():
     for point, neighbours in enumerate(adjacent_points):
         for i, neighbour in enumerate(neighbours):
             draw_line(ax, points[point], points[neighbour], 'r' if i == 2 else 'b')
-
 
     adjacent_glyphs = read_glyph_data()
 
@@ -274,26 +275,32 @@ def main():
     plot_points(ax, vectors[np.where(np.all(STARMAPPING == 0, axis=1))], '*c', 16)
 
     # Label all star points
-    for glyph in range(60):
+    for glyph in range(n):
         ax.text(vectors[glyph][0], vectors[glyph][1], vectors[glyph][2], GLYPH_NAMES[glyph])
 
     # Find the closest vector to the target vector
-    dot_products = np.zeros(60)
+    dot_products = np.zeros(n)
 
     for i, vector in enumerate(vectors):
         dot_products[i] = np.dot(vector, DESTINATION_VECTOR)
 
     initial_vector = np.argmax(dot_products)
 
-    # Shift back to 1-indexed to match the glyph icons
-    print("Initial Vector: Glyph {} : {} : {}".format(initial_vector+1, GLYPH_NAMES[initial_vector], vectors[initial_vector]))
-
+    # Draw the initial vector
     draw_line(ax, ORIGIN, unit(vectors[initial_vector])*10, 'g--')
 
     # Dump the data for the spreadsheet
-    for glyph, point in enumerate(glyph_points):
-        # 1-Indexed to match the spreadsheet
-        print(glyph + 1, " : ", points[int(point)])
+    with open('output.dat', 'w+') as fout:
+        for glyph in range(n):
+            output_list = list(adjacent_glyphs[glyph]) 
+            output_list.append(GLYPH_NAMES[glyph])
+            output_list += list(vectors[glyph])
+            fout.write(",".join([str(x) for x in output_list])+"\n")
+
+    # Shift back to 1-indexed to match the glyph icons
+    print("Initial Vector: Glyph {} : {} : {}".format(initial_vector+1, GLYPH_NAMES[initial_vector], vectors[initial_vector]))
+
+
 
     plt.show()
     
