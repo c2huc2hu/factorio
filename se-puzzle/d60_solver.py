@@ -211,7 +211,7 @@ def associate_glyph_points(adjacent_glyphs, points, adjacent_points):
 
         closest_point = np.argmin(distances)
 
-        print("Star {} ({}) : {} is closest to point ({}) {}".format(GLYPH_NAMES[current_glyph], current_glyph, STARMAPPING[current_glyph], closest_point, points[closest_point]))
+        # print("Star {} ({}) : {} is closest to point ({}) {}".format(GLYPH_NAMES[current_glyph], current_glyph, STARMAPPING[current_glyph], closest_point, points[closest_point]))
 
         # Associate the nearest point to this glpyh
         glyph_points[current_glyph] = closest_point
@@ -248,7 +248,7 @@ def associate_glyph_points(adjacent_glyphs, points, adjacent_points):
     while len(hidden_glyphs) > 0:
         check_glyph = hidden_glyphs.pop()
 
-        print("Compare Glyph {} : {} Estimated : {} Actual : {}".format(check_glyph, GLYPH_NAMES[check_glyph], points[glyph_points[check_glyph]], STARMAPPING[check_glyph]))
+        # print("Compare Glyph {} : {} Estimated : {} Actual : {}".format(check_glyph, GLYPH_NAMES[check_glyph], points[glyph_points[check_glyph]], STARMAPPING[check_glyph]))
         assert np.dot(points[glyph_points[check_glyph]], STARMAPPING[check_glyph]) > 0.999
 
     return glyph_points
@@ -302,7 +302,8 @@ def refine_triangular_segment(triangle, target_point):
         np.array([[0,0],[1,0],[0,1]]), # A
         np.array([[1,0],[2,0],[1,1]]), # B
         np.array([[0,1],[1,1],[0,2]]), # C
-        np.array([[1,1],[0,1],[1,0]]), # D
+        np.array([[1,1],[0,1],[1,0]]), # D (rotated)
+       #np.array([[0,1],[1,1],[1,0]]), # D (flipped)
     ]
 
     x, y = new_basis_target_point
@@ -331,40 +332,49 @@ def refine_triangular_segment(triangle, target_point):
     # Return the refined triangle, and which segment it was of the original triangle
     return new_triangle, triangle_idx
 
-def test_refine_triangle():
-    fig = plt.figure()
-    ax = fig.add_subplot()
-    ax.set_xlim(0,1)
-    ax.set_ylim(0,1)
+def adjust_step_to_glyph(steps):
+    # Takes in a tuple of 3 by-4 triangular divisions and calculates the glyph index
+    # of the corresponding by-64 triangular division
 
-    triangle = np.array([
-        [0,0],
-        [1,0],
-        [0.5, np.sqrt(3)/2]
-    ])
+    # A by-4 triangular division looks like:
+    #    /C\
+    #  /A\D/B\
 
-    # Random Points
-    points = np.random.uniform(size=(100,2))
+    # If you left-justify the triangle it looks like this:
+    # |C\
+    # |A\D|B\
+    # 
+    # With some padding, it looks like this:
+    # |C\
+    # |A\|D/|B\
 
-    colors = ['c', 'm', 'y', 'k']
+    # Easier to work with glyphs in a rectangular grid
+    glyphs = np.ones([8,15], dtype=int) * -1 # [Row, Column] indexing
 
-    num_points = 0
+    # Build the grid
+    with open('pyramid.dat') as fin:
+        for row, line in enumerate(fin.readlines()):
+            line = line.lstrip().rstrip()
+            for col, glyph in enumerate(line.split(',')):
+                if glyph != "":
+                    glyph = int(glyph)
+                    glyphs[row][col] = glyph
 
-    while num_points < 10000:
-        point = np.random.uniform(size=2)
+    # Glyph matrix is lower-triangular
 
-        try:
-            idx = refine_triangular_segment(triangle, point)
-        except AssertionError:
-            continue
-        
-        color = colors[idx]
+    # A/B/C Kernel          D Kernel
+    # Step 1:
+    #   X                   X X X X X X X
+    #   X X X                   X X X X X
+    #   X X X X X                   X X X
+    #   X X X X X X X                   X
 
-        ax.plot(point[0], point[1], '{}o'.format(color), linestyle='None')
-
-        num_points += 1
-
-    fig.show()
+    # Step 2:
+    #   X                   X X X
+    #   X X X                   X
+    
+    # Step 3:
+    #   X                   X
 
 
 ################################################################################
@@ -506,9 +516,10 @@ def main():
 
     print("Pyramid Fine Adjust Steps:")
     for i in range(len(steps)//3):
-        for j in range(3):
-            print(step_map[steps[i+j]], end='')
-        print('')
+        glyph_steps = (steps[i*3:(i+1)*3])
+        print(''.join([step_map[x] for x in glyph_steps]))
+
+        glyph = adjust_step_to_glyph(glyph_steps)
 
     triangle_centeroids = np.array(triangle_centeroids)
 
