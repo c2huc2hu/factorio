@@ -7,6 +7,9 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 
+import warnings
+warnings.filterwarnings("ignore")
+
 ORIGIN = np.array([0, 0, 0], dtype=np.float64)
 
 PHI = (1 + 5 ** 0.5) / 2
@@ -33,6 +36,8 @@ CORNER_VECTORS = [
     np.array([0.57735021142964, -0.57735041155694, 0.57735018458227]), # Vector [44,62,62,62,62,62,62,62]
     np.array([0.52573107107952, -0.8506508337159, 1.4848270733249e-07]), # Vector [44,63,63,63,63,63,63,63]
 ]
+
+GLYPH_PYRAMID = np.zeros([8,16])
 
 def unit(vec):
     return vec / np.linalg.norm(vec)
@@ -253,7 +258,7 @@ def associate_glyph_points(adjacent_glyphs, points, adjacent_points):
 
     return glyph_points
 
-def refine_triangular_segment(triangle, target_point):
+def refine_triangular_segment(triangle, target_point, flip_not_rotate=False, debug=False):
     # Triangle points are enumerated:
     #     2
     #    / \
@@ -265,10 +270,24 @@ def refine_triangular_segment(triangle, target_point):
     #     / \
     # (0,0)-(1,0)
 
+    if debug:
+        print("Original Triangle")
+        print(triangle)
+        
+        print("Target Point")
+        print(target_point)
+
     # Reference all points to the origin of the triangle
     triangle_origin = np.array(triangle[0])
     adj_target_point = target_point - triangle_origin
     adj_triangle = triangle - triangle_origin
+
+    if debug:
+        print("Original Triangle (w.r.t Triangle Origin)")
+        print(adj_triangle)
+
+        print("Target Point (w.r.t. Triangle Origin)")
+        print(adj_target_point)
 
     # Change-of-basis matrix:
     #   x_old = Ax_new 
@@ -279,16 +298,28 @@ def refine_triangular_segment(triangle, target_point):
         (adj_triangle[2] - adj_triangle[0]),
     ]))
 
-    # To refine our guess, subdivide the triangle into four segments (A,B,C,D)
-    #         (0,2)
-    #         / C \
-    #     (0,1)---(1,1)
-    #     / A \ D / B \
-    # (0,0)---(1,0)---(2,0)
-    # 
-    # Dividing the basis vectors by 2 before the change-of-basis provides this transform
-    basis /= 2
+    # After adjusting the basis, the triangle coordinates are now:
+    #    (0,1)
+    #     / \
+    # (0,0)-(1,0)
 
+    # Adjusting the conceptual frame of reference into this coordinage system, the triangle becomes a right-angle triangle:
+    # (0,1)
+    #   |  \
+    # (0,0)-(1,0)
+
+    # There are 64 equal triangles in the glyph pyramid, so the triangle is scaled up by a factor of 8 in each dimension
+    # (ex. Scaling by a factor of 2):
+    #  (0,2)
+    #    |  \ 
+    #  (0,1)-(1,1)
+    #    |  \  |  \
+    #  (0,0)-(1,0)-(2,0)
+
+    # Dividing the basis vector by 8 before applying the change-of-basis accomplishes this:
+    basis /= 8
+
+    # Now transform the target point (referenced to the triangle's origin) into the new basis:
     # For the desired expression:
     #   x_new = A_invX_old we invert A
     basis_inv = np.linalg.inv(basis)
@@ -296,60 +327,88 @@ def refine_triangular_segment(triangle, target_point):
     # Bring the target point into the new basis
     new_basis_target_point = basis_inv.dot(adj_target_point)
 
-    # The refined triangle uses the points of the triangular segment, 
-    # in the same counter-clockwise order starting across the base. 
-    refined_triangles = [
-        np.array([[0,0],[1,0],[0,1]]), # A
-        np.array([[1,0],[2,0],[1,1]]), # B
-        np.array([[0,1],[1,1],[0,2]]), # C
-        np.array([[1,1],[0,1],[1,0]]), # D (rotated)
-       #np.array([[0,1],[1,1],[1,0]]), # D (flipped)
-    ]
+    if debug:
+        print("Target Point (New Basis)")
+        print(new_basis_target_point)
 
-    x, y = new_basis_target_point
+    # Now, thinking in cartesian coordinates we need to:
+    # 1. Locate the point in the square grid
+    new_basis_target_cell = np.floor(new_basis_target_point)
 
-    assert x > 0
-    assert y > 0
+    # 2. Identify if the point is in the upper or lower triangular half of the square
+    #      If we re-define the point to be w.r.t. the lower-left corner of the target cell
+    #      Then the diagonal separating the glyphs is between relative points (0,1) and (1,0).
+    #      The equation of this line would be (x + y - 1 = 0).
+    new_basis_target_in_upper_triangle = np.sum(new_basis_target_point - new_basis_target_cell) > 1
 
-    if x + y < 1:
-        triangle_idx = 0 # 'A'
-    elif x + y < 2:
-        if x > 1:
-            triangle_idx = 1 # 'B'
-        elif y > 1:
-            triangle_idx = 2 # 'C'
+    # The [1] component describes which row of the pyramid we're in:
+    glyph_row = int(new_basis_target_cell[1])
+
+    # The [0] component describes which column of the pyramid we're in. 
+    # Multiply the index by two since the upper and lower halves of the 
+    # 'square' cell are in the same row of the pyramid array:
+    glyph_column = int(2*new_basis_target_cell[0])
+
+    # Finally, if the point is in the upper half-triangle, shift the column one to the left
+    glyph_column += 1 if new_basis_target_in_upper_triangle else 0
+
+    # Pick the glyph from the pyramid array
+    if debug:
+        print("Checking Glyph Pyramid at ({}, {}) = ".format(glyph_row, glyph_column), end="")
+
+    glyph = GLYPH_PYRAMID[glyph_row][glyph_column]
+
+    if debug:
+        print(glyph)
+
+    assert glyph > 0
+
+    # Now identify the new triangle:
+    if new_basis_target_in_upper_triangle:
+        # If the new triangle is an upper-half triangle then it is in a different orientation w.r.t the original triangle.
+        # The base of the triangle is always the horizontal line
+        # The peak of the triangle is always given last
+        if flip_not_rotate:
+            # Flip across the base, points are now given in clockwise order
+            new_triangle = [ [0,1], [1,1], [1,0] ]
         else:
-            triangle_idx = 3 # 'D'
+            # Rotate around the triangle origin, points are still given in anti-clockwise order:
+            new_triangle = [ [1,1], [0,1], [1,0] ]
     else:
-        assert False
+        # If the new triangle is one of the three 'right-side-up' triangles, then its coordinates are simply:
+        new_triangle = [ [0,0], [1,0], [0,1] ] 
 
-    # Transform the new triangular segment back to the original basis
-    new_triangle = np.transpose(basis.dot(np.transpose(refined_triangles[triangle_idx])))
+    if debug:
+        print("New Triangle:")
+        print(new_triangle)
 
-    # Restore the original origin
+    # Shift the new triangle to the cartesian cell corresponding to the glyph:
+    new_triangle += new_basis_target_cell
+
+    if debug:
+        print("New Triangle (Shifted):")
+        print(new_triangle)
+
+    # Transform the triangle back into the original basis:
+    new_triangle = np.transpose(basis.dot(np.transpose(new_triangle)))
+
+    if debug:
+        print("New Triangle (Original Basis):")
+        print(new_triangle)
+
+    # Relocate the new triangle w.r.t. the original triangle's origin
     new_triangle += triangle_origin
 
-    # Return the refined triangle, and which segment it was of the original triangle
-    return new_triangle, triangle_idx
+    if debug:
+        print("New Triangle (Final):")
+        print(new_triangle)
 
-def adjust_step_to_glyph(steps):
-    # Takes in a tuple of 3 by-4 triangular divisions and calculates the glyph index
-    # of the corresponding by-64 triangular division
+    # Return the refined triangle and the corresponding glyph
+    return new_triangle, glyph
 
-    # A by-4 triangular division looks like:
-    #    /C\
-    #  /A\D/B\
-
-    # If you left-justify the triangle it looks like this:
-    # |C\
-    # |A\D|B\
-    # 
-    # With some padding, it looks like this:
-    # |C\
-    # |A\|D/|B\
-
-    # Easier to work with glyphs in a rectangular grid
-    glyphs = np.ones([8,15], dtype=int) * -1 # [Row, Column] indexing
+def read_glyph_pyramid():
+    global GLYPH_PYRAMID
+    glyphs = np.zeros([8,16], dtype=int) # [Row, Column] indexing
 
     # Build the grid
     with open('pyramid.dat') as fin:
@@ -360,21 +419,10 @@ def adjust_step_to_glyph(steps):
                     glyph = int(glyph)
                     glyphs[row][col] = glyph
 
-    # Glyph matrix is lower-triangular
+    # Flip the rows so that the widest 'base' row is indexed 0
+    GLYPH_PYRAMID = np.flip(glyphs, axis=0)
 
-    # A/B/C Kernel          D Kernel
-    # Step 1:
-    #   X                   X X X X X X X
-    #   X X X                   X X X X X
-    #   X X X X X                   X X X
-    #   X X X X X X X                   X
-
-    # Step 2:
-    #   X                   X X X
-    #   X X X                   X
-    
-    # Step 3:
-    #   X                   X
+    assert np.sum(GLYPH_PYRAMID) == (1+64)*64/2, "SUM OF PYRAMID IS {}".format(np.sum(GLYPH_PYRAMID))
 
 
 ################################################################################
@@ -496,34 +544,49 @@ def main():
         ax2d.annotate(str(xy), xy, textcoords='data')
 
     # Work out the glyphs for focusing in on the target point
-    # The glyphs refine the target to a triangle 1/64th of the original size over 7 iterations
-    # My algorithm only refines the triangle to a 1/4th the original, size, so I need 21 iterations
+    read_glyph_pyramid()
+
     target_point_2d = projected_points[4]
     triangle_points_2d = projected_points[1:4]
 
-    triangle_centeroids = []
+    triangle_centeroids_2d = []
+    triangle_centeroid_2d = np.sum(triangle_points_2d,axis=0)/3
+    triangle_centeroids_2d.append(triangle_centeroid_2d)
 
     steps = []
+    step_vectors = []
 
-    for i in range(21):
-        triangle_centeroid = np.sum(triangle_points_2d,axis=0)/3
-        triangle_centeroids.append(triangle_centeroid)
-        triangle_points_2d, step = refine_triangular_segment(triangle_points_2d, target_point_2d)
+    for i in range(7):
+        triangle_points_2d, glyph = refine_triangular_segment(triangle_points_2d, target_point_2d, True)
         plot_points_2D(ax2d, triangle_points_2d, '^', 4)
-        steps.append(step)
 
-    step_map = ['A', 'B', 'C', 'D']
+        triangle_centeroid_2d = np.sum(triangle_points_2d,axis=0)/3
+        triangle_centeroids_2d.append(triangle_centeroid_2d)
 
-    print("Pyramid Fine Adjust Steps:")
-    for i in range(len(steps)//3):
-        glyph_steps = (steps[i*3:(i+1)*3])
-        print(''.join([step_map[x] for x in glyph_steps]))
+        # Reverse the projection transform to bring the triangle centeroid back into 3D space
+        triangle_centeroid_3d = ((triangle_centeroid_2d*scale) @ (np.array([local_2d_right_vector, local_2d_up_vector]))) + local_2d_origin
+        plot_point_3D(ax, triangle_centeroid_3d, '^', 8)
 
-        glyph = adjust_step_to_glyph(glyph_steps)
+        # Log the 'guess' created by this refinement as a unit vector
+        guess_vector = unit(triangle_centeroid_3d) 
+        step_vectors.append(guess_vector)
 
-    triangle_centeroids = np.array(triangle_centeroids)
+        steps.append(glyph)
 
-    ax2d.plot(triangle_centeroids[:,0], triangle_centeroids[:,1], '^-', markersize=4)
+    print("Pyramid Fine Adjust Glyphs:")
+    print(steps)
+
+    print("Intermediate Guesses:")
+    for i in range(len(steps)):
+        # 64 is the no-op vector
+        guess_steps = steps[:i+1] + [64]*(6-i)
+        frmt = "{:>3}"*len(guess_steps)
+        print(frmt.format(*guess_steps), end="")
+        print(" : ", step_vectors[i], " : ", np.dot(step_vectors[i], DESTINATION_VECTOR))
+
+    triangle_centeroids_2d = np.array(triangle_centeroids_2d)
+
+    ax2d.plot(triangle_centeroids_2d[:,0], triangle_centeroids_2d[:,1], '^-', markersize=4)
 
     plt.show()
 
