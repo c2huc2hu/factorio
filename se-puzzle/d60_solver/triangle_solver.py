@@ -44,7 +44,7 @@ class TriangleSolver(object):
 
         # Reference all points to the origin of the triangle
         triangle_origin = np.array(triangle[0])
-        adj_target_point = target_point - triangle_origin
+        adj_point = point - triangle_origin
         adj_triangle = triangle - triangle_origin
 
         if debug:
@@ -52,7 +52,7 @@ class TriangleSolver(object):
             print(adj_triangle)
 
             print("Target Point (w.r.t. Triangle Origin)")
-            print(adj_target_point)
+            print(adj_point)
 
         # Change-of-basis matrix:
         #   x_old = Ax_new 
@@ -90,7 +90,7 @@ class TriangleSolver(object):
         basis_inv = np.linalg.inv(basis)
 
         # Bring the target point into the new basis
-        new_basis_target_point = basis_inv.dot(adj_target_point)
+        new_basis_target_point = basis_inv.dot(adj_point)
 
         if debug:
             print("Target Point (New Basis)")
@@ -183,10 +183,12 @@ class TriangleSolver(object):
         new_triangle = np.array(triangle)
 
         sequence = []
+        triangles = []
 
         for _ in range(steps):
-            new_triangle, glyph = _get_point_subtriangle(new_triangle, target_point)
+            new_triangle, glyph = self._get_point_subtriangle(new_triangle, target_point)
             sequence.append(glyph)
+            triangles.append(np.array(new_triangle))
 
-        return sequence
+        return sequence, triangles
         
