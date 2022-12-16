@@ -1,4 +1,5 @@
 import numpy as np
+from skspatial.objects import Plane
 
 from util import *
 
@@ -220,50 +221,19 @@ class D60Solver(object):
         return self.vectors[glyph]
 
     def get_glyph_face_triangle(self, glyph):
-        # The midpoints of the edges between the given point and the adjacent points 
-        # are also the midpoints of the edges of the triangle. 
         starting_point = self.points[self.glyph_points[glyph]]
         adjacent_points = self.points[self.point_adj[self.glyph_points[glyph]]]
 
-        edge_midpoints = ((adjacent_points - starting_point) / 2) + starting_point
+        starting_plane = Plane(point=starting_point, normal=starting_point)
 
-        # To construct the triangle, the line between any two midpoints is parallel 
-        # to the edge that the third midpoint lies on
-        edge_unit_vectors = np.array([3,3], dtype=np.float64)
+        triangle = np.zeros([3,3], dtype=np.float64)
 
-        for i in len(edge_midpoints):
-            a = i+1 % len(edge_midpoints)
-            b = i+2 % len(edge_midpoints)
-            # Numbering here chosen so that edge_unit_vector[a] is parallel to the edge that midpoint[a] lies on
-            # and so that all unit vectors point anti-clockwise around the triangle
-            edge_unit_vectors[i] = unit(edge_midpoints[b] - edge_midpoints[a])
+        for i in range(3):
+            adj_face_0 = Plane(point=adjacent_points[(i+1)%3], normal=adjacent_points[(i+1)%3])
+            adj_face_1 = Plane(point=adjacent_points[(i+2)%3], normal=adjacent_points[(i+2)%3])
+            triangle[i] = starting_plane.intersect_line(adj_face_0.intersect_plane(adj_face_1))
 
-        # The vertices of the triangle are found at the intersections of the lines
-        # defined by the edge unit vectors and the edge midpoints
-        triangle = np.array([3,3], dtype=np.float64)
-
-        for i in len(edge_midpoints):
-            a = i+1 % len(edge_midpoints)
-            b = i+2 % len(edge_midpoints)
-            # Numbering here chosen so that triangle[a] is opposite edge_midpoint[a]
-            triangle[i] = line_line_intersection(edge_unit_vectors[a], edge_midpoints[a], edge_unit_vectors[b], edge_midpoints[b])
-
-        # Since the starting points were of a unit Truncated Icosahedron, the triangle points 
-        # should be of a unit Pentakis Dodecahedron, and therefore be unit vectors already
-        assert np.all(np.linalg.norm(triangle) == 1)
-
-        # The normal vector to the plane formed by the three triangle points should be 
-        # parallel to the original starting point unit vector
-        assert unit(get_plane_normal_vector(triangle)) == unit(starting_point)
-
-        # Projecting the original glyph point into the plane of the triangle should
-        # place it at the centeroid of the triangular face
-        triangle_centeroid = np.sum(triangle, axis=0)/3
-
-        projected_point = project_point_into_plane(starting_point, starting_point, triangle[0])
-
-        assert triangle_centeroid == projected_point
-
+        print(triangle)
         return triangle
 
     def plot(self, ax):
