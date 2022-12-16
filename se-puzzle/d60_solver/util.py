@@ -12,17 +12,10 @@ def line_plane_intersection(line_vec, norm_vec, line_point, plane_point):
     d = np.dot((plane_point - line_point), norm_vec) / np.dot(line_vec, norm_vec)
     return line_point + line_vec * d
 
-def line_line_intersection(vec_a, point_a, vec_b, point_b):
-    #TODO
-    pass
-
 def get_plane_normal_vector(points):
-    #TODO
-    pass
-
-def project_point_into_plane(point, plane_normal_vec, plane_point):
-    #TODO
-    pass
+    u = points[1] - points[0]
+    v = points[2] - points[1]
+    return unit(np.cross(u, v))
 
 def sign_permutation_3(point):
     points = []
